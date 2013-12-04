@@ -1,0 +1,28 @@
+<html>
+<head>
+
+    <script language="javascript">
+	global=window;
+	global.exports={};
+	var oldconsole=console;
+	console={};
+
+	console.log=function(str){
+		document.all["output"].innerHTML+=str+"<br \>\n"
+	}
+	var require = (function () {
+		var ret = function (f) {
+			return exports;
+		}
+		return ret;
+	})();
+
+    </script>
+	<script language="javascript" async=false src="../common/class.js"></script>
+
+</head>
+<body>
+<script language="javascript" async=false src="./node.js"></script>
+<p id="output"> </p>
+</body>
+</html>

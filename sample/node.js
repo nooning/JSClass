@@ -11,7 +11,7 @@
  *along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *********************************************************************/
 
-var ClassObj = require('../common/class.js');
+var ClassObj = require('../common/class.node.js');
 var Class = ClassObj.Class;
 var Property = ClassObj.Class.Property;
 

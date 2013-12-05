@@ -1,28 +1,166 @@
 <html>
 <head>
+<script language="javascript" async=false >
+global = window;
 
-    <script language="javascript">
-	global=window;
-	global.exports={};
-	var oldconsole=console;
+</script>
+<script language="javascript" src="../common/class.js"></script>
+<script language="javascript" src="../common/library.js"></script>
+<script language="javascript" >
+
+//Change normal policy
+Class.Policy.Default = Class.Policy.Public;
+Property = Class.Property;
+//Define a Namespace ABC, and define two Class by normal way
+var ABC={
+    Class2:function(parameter){
+        this.testClass2=function(){
+            console.log("class2");
+        }
+    },
+    Class3:function(parameter){
+        this.testClass3=function(){
+            console.log("class3");
+        }
+    }
+};
+
+Class({
+        Namespace:ABC,
+        Name:"ClassTop",
+        /* Base define, You should using one of them or none. default policy is public, inherit all methods & property except private members*/
+        Bases:[ABC.Class2,ABC.Class3,Class.CSingleton],//no parameter,default policy, inherit all methods& property.
+//        Bases:[ [ABC.Class2,[],Class.Policy.Private,true], [ABC.Class3,[],Class.Policy.Public]],
+//        Bases:{"Class2":{Namespace:ABC,Parameter:null,Policy:Class.Policy.Private,Hidden:false },"Class3":{Namespace:ABC,Parameter:[1],Policy:Class.Policy.Public} },
+
+        Private:{
+            m_var:1,
+        },
+        Protected:{
+            constructor:function(v){
+                this.m_var=v;
+            }
+        },
+        Public:{
+            Test:function(){
+                this.m_var++;
+                //this.Class2.testClass2();
+                this.AS(ABC.Class2).testClass2();
+                this.testClass2();
+                return this.m_var;
+            }
+        }
+    }
+);
+
+Class({
+    Namespace:ABC,
+    Name:"ClassL2",
+    Bases:[ABC.ClassTop],
+    Private:{
+        m_var:2
+    },
+    Protected:{
+        proval:2,
+        fight:Property(function(){
+            this.m_var--;
+            console.log("ClassL2::fight (m_var)" +this.m_var);
+        },[Property.Type.Virtual])
+    },
+    Public:{
+        Fight:function(){
+            console.log("ClassL2::Fight (m_var)"+this.m_var);
+            this.fight();
+        }
+    }
+});
+Class({
+    Namespace:ABC,
+    Name:"ClassL3",
+    Bases:{"ClassL2":{Namespace:ABC,Policy:Class.Policy.Public}},
+    Private:{
+        Leg:2
+    },
+    Protected:{
+        TestProtected:0,
+        fight:function(){
+            console.log("ClassL3::fight "+this.constructor["."].Name);
+            this.Leg--;
+        }
+    }
+});
+
+Class({
+        Namespace:ABC,
+        Name:"ClassL4",
+        Bases:[ABC.ClassL3],
+        Private:{
+            fight:function(){
+                console.log("ClassL4::fight " +this.constructor["."].Name);
+            }
+        },
+        Public:{
+            GetTestProtected:function(){
+                return this.TestProtected;
+            }
+        }
+    }
+);
+
+Class({
+        Namespace:ABC,
+        Name:"ClassL5",
+        Bases:[ABC.ClassL4],
+        Private:{
+            m_var:1,
+            constructor:function(v){
+                this.m_var=v;
+            }
+        },
+        Public:{
+            GetTestProtected:function(){
+                this.m_var++;
+                return this.TestProtected;
+            },
+            Create:Property(function(v){
+                return new ABC.ClassL5(5);
+            },[Property.Type.Static.Function])
+        }
+    }
+);
+function Test(){
+	var oldconsole = console;
 	console={};
-
-	console.log=function(str){
-		document.all["output"].innerHTML+=str+"<br \>\n"
+	console.log=function(msg){
+		document.all["output"].innerHTML+=msg+"<br>";
 	}
-	var require = (function () {
-		var ret = function (f) {
-			return exports;
-		}
-		return ret;
-	})();
+	ABC.ClassTop.Instance.Test();
+	ABC.ClassTop.Instance.testClass3();
+	ABC.ClassTop.Instance.AS(ABC.Class2).testClass2();
 
-    </script>
-	<script language="javascript" async=false src="../common/class.js"></script>
 
+	ABC.ClassL2.Instance.Fight();
+	ABC.ClassL3.Instance.Fight();
+	ABC.ClassL4.Instance.Fight();
+	ABC.ClassL5.Instance.GetTestProtected();
+
+
+
+	ABC.ClassL5.Create(5);
+	//var a = new ABC.ClassL5(5);   //constructor is private.
+	var p = new ABC.ClassL4();
+	p = ABC.ClassL5.Instance;
+	p.GetTestProtected();
+	//p.TestProtected=0; //can't visit protected member.
+
+	console = oldconsole;
+}
+
+</script>
 </head>
-<body>
-<script language="javascript" async=false src="./node.js"></script>
+<body onload="Test()">
 <p id="output"> </p>
+
+
 </body>
 </html>

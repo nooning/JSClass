@@ -36,7 +36,7 @@ var _Class_Help = {
 				else if (callerSetting.Name)
 					messageadditon += "\n\t<-" + callerSetting.Name;
 				else if (caller.name.length > 0)
-					messageadditon += "\n\t<-" + callerer.name;
+					messageadditon += "\n\t<-" + caller.name;
 				else
 					messageadditon += "\n\t<-(unknown function)";
 			}
@@ -130,10 +130,10 @@ var _Class_Help = {
 				(callerSetting = _Class_Help.GetSetting(caller)) &&
 					(callerOwner = (callerSetting.OwnerClass || caller)) && (
 					thisType === callerOwner ||
+					((thisTypeSetting = _Class_Help.GetSetting(thisType)) &&
 						thisTypeSetting.$IsVirtualFunctionFrom(fun, caller) ||
-						(thisTypeSetting = _Class_Help.GetSetting(thisType)) &&
 						(friends = thisTypeSetting.Friends) &&
-							friends.check(callerOwner)
+							friends.check(callerOwner))
 				), "can't visit private member.", fun);
 		}
 	],
@@ -162,7 +162,7 @@ var _Class_Help = {
 		delete retObj.Is;
 		if (retObj.Type === undefined) {
 			retObj.Value = obj;
-			if (obj instanceof Function)
+			if (obj !== undefined && obj instanceof Function)
 				retObj.Type = Class.Property.Type.Object.Function.Type;///this.Type.Object.Function.Type;
 			else
 				retObj.Type = Class.Property.Type.Object.Var.Type; //this.Type.Object.Var.Type;
@@ -178,6 +178,7 @@ var _Class_Help = {
 		return ret;
 	},
 	_Help_CopyObjectProperty: function (to, from, ignore) {
+		_Class_Help.SysAssert(from !== undefined && to !== undefined && from !== to, "_Help_CopyObjectProperty: can't be undefined, or same object.");
 		if (!(from instanceof Function || from instanceof Object))
 			return to;
 
@@ -193,11 +194,11 @@ var _Class_Help = {
 			return classDef.apply(this, args);
 		}
 		F.prototype = classDef.prototype;
-		this.SetDelegate(F, true);//this.SetSettings(F, { $IsDelegate: true });
+		this.SetDelegate(F);
 		var ret = function (p) {
 			return new F(p);
 		}
-		this.SetDelegate(ret, true); //this.SetSettings(ret, { $IsDelegate: true });
+		this.SetDelegate(ret);
 		return ret;
 	},
 	_Help_GetBaseClassByName: function (obj, name) {
@@ -273,7 +274,7 @@ var _Class_Help = {
 		return this.SetSettings(fun, { "OwnerClass": owen, Name: name, Desc: desc });
 	},
 	_Help_Static_Class_Function_Sign_Base: function (fun, owen, name, desc) {
-		this.SetDelegate(fun, true);
+		this.SetDelegate(fun);
 		return this._Help_Static_Class_Function_Sign(fun, owen, name, desc);//this.SetSettings(fun, { "OwnerClass": owen, "$IsDelegate": true, Name: name, Desc: desc });
 	},
 	_Help_Static_Class_Function_Sign_No_Inherit: function (fun, owen, name, desc) {
@@ -383,7 +384,6 @@ var _Class_Help = {
 					set = value.set;
 					value.set = funs.Setting(isStatic ? funs.Property.Static.set : funs.Property.Object.set, additionStr + "set_", set, type);
 				}
-				console.log("define property " + name + " " + (value.get ? (value.set ? "WR" : "R") : (value.set ? "W" : "N/A")));
 				Object.defineProperty(delegate_obj, name, funs.Property.BeforeDefine(value));
 			}
 		} else {//functions
@@ -408,7 +408,7 @@ var _Class_Help = {
 			return delgateFun;
 		};
 		function _propertyAndFunctionSetting(fun, type, delgateFun) {
-			_Class_Help.SetDelegate(fun, true);// _Class_Help.SetSettings(fun, { $IsDelegate: true });
+			_Class_Help.SetDelegate(fun);// _Class_Help.SetSettings(fun, { $IsDelegate: true });
 			_Class_Help.SetSettings(delgateFun, {
 				Type: type,
 				//TopObject: delegate_obj,
@@ -484,7 +484,16 @@ var _Class_Help = {
 		if (name === "constructor")
 			return;
 		//function Clone(f) { return function () { checkPolicy(arguments.callee); return f.apply(this, arguments); } }
-		function Clone(f) { return f; }
+		function Clone(f) {
+			var fun = _Class_Help.GetSetting(f).Value;
+			_Class_Help.SetDelegate(fun);
+
+			return function () {
+				checkPolicy(arguments.callee);
+				return fun.apply(this, arguments);
+			} //sign
+			//return f;
+		}
 
 		function NoClone(f, fobj) { return function () { checkPolicy(arguments.callee); return f.apply(destClass, arguments); } }/*MASK*/
 		function PropertyClone(funget, funset) {
@@ -570,8 +579,15 @@ var _Class_Help = {
 
 		var baseSetting = this.GetSetting(baseClass);
 
-		//function Clone(f) { return function () { checkPolicy(arguments.callee); return f.apply(this, arguments); } }
-		function Clone(f) { return f; }
+		function Clone(f) {
+			var fun = _Class_Help.GetSetting(f).Value;
+			_Class_Help.SetDelegate(fun);
+			return function () {
+				checkPolicy(arguments.callee);
+				return fun.apply(this, arguments);
+			}
+			//return f;
+		}
 		function NoClone(f) { return function () { checkPolicy(arguments.callee); return f.apply(this.AS(baseClass), arguments); } }
 		function PropertyClone(funget, funset) {
 			var fun = funget || funset;
@@ -642,7 +658,12 @@ var _Class_Help = {
 				_Class_Help.SysAssert(false, "Clone Object not support");
 			}
 		}
-		function NoClone(f, fobj) { return function () { checkPolicy(arguments.callee); return f.apply(delegate_obj_inst, arguments); } }
+		function NoClone(f, fobj) {
+			return function () {
+				checkPolicy(arguments.callee);
+				return f.apply(delegate_obj_inst, arguments);
+			}
+		}
 		function PropertyClone(funget, funset) {
 			_Class_Help.SysAssert(false, "PropertyClone Object not support");
 		}
@@ -655,11 +676,16 @@ var _Class_Help = {
 
 			desc.get = function () {
 				checkPolicy(arguments.callee);
-				return this.AS(baseObj)[name];
+				return baseObj[name];
+				//return this.AS(baseObj)[name];
 			}
 			_Class_Help._Help_Static_Class_Function_Sign_Base(desc.get, ownerClass, name, clsName + "::get_" + name);
 			if (desc.writable) {
-				desc.set = function (v) { checkPolicy(arguments.callee); this.AS(baseObj)[name] = v; }
+				desc.set = function (v) {
+					checkPolicy(arguments.callee);
+					baseObj[name] = v;
+					//this.AS(baseObj)[name] = v;
+				}
 				_Class_Help._Help_Static_Class_Function_Sign_Base(desc.get, ownerClass, name, clsName + "::set_" + name);
 			}
 			delete desc.writable;
@@ -711,7 +737,7 @@ var _Class_Help = {
 		var policyCheck = _Class_Help.PolicyCheck[policy];
 		for (var propertyName in from) {
 			if (
-				from.constructor.prototype.hasOwnProperty(propertyName) || //if has in prototype ignore it. 删除会导致功能不正常，原因不详，可能是to.hasownproperty出错
+				from.constructor.prototype.hasOwnProperty(propertyName) || //if has in prototype ignore it. remove this line will be error, may be cause of "to.hasownproperty"
 				to.hasOwnProperty(propertyName))
 				continue;
 
@@ -741,6 +767,7 @@ var _Class_Help = {
 		return Obj[this._SettingString];
 	},
 	SetSettings: function (Obj, settings, ignoreWhenExist) {
+		_Class_Help.SysAssert(Obj !== undefined, "SetSettings: Obj undefined");
 		if (!Obj.hasOwnProperty(this._SettingString)) {
 			Object.defineProperty(Obj, this._SettingString, { value: settings });
 		} else
@@ -751,7 +778,7 @@ var _Class_Help = {
 	SafeDefinedItem: function (policyItem, name) {  //used on defined item only.
 		var item = policyItem[name];
 
-		if (item instanceof Function) {
+		if (item !== undefined && item instanceof Function) {
 			this.SetSettings(item, { Type: this.Property.Type.Object.Function.Type }, true);;
 		} else {
 			var ret = function () { };
@@ -765,11 +792,11 @@ var _Class_Help = {
 	},
 	SetDelegate: function (fun, isdelegate) {
 		var obj = {};
-		obj[this._IsDelegate] = isdelegate ? true : false;
-		this.SetSettings(fun, obj);
+		obj[_Class_Help._IsDelegate] = isdelegate || isdelegate === undefined ? true : false;
+		_Class_Help.SetSettings(fun, obj);
 	},
 	IsDelegate: function (fun) {
-		return this.GetSetting(fun)[this._IsDelegate];
+		return _Class_Help.GetSetting(fun)[this._IsDelegate];
 	}
 };
 //virtual & override not allow
@@ -892,10 +919,18 @@ function Class(defines) {
 
 		////////////////////////////////////////////
 		this.AS = function (typeClass) {
-			var typeSetting = _Class_Help.GetSetting(typeClass);
-			if (typeSetting && typeSetting.Name) {
-				if (bases.hasOwnProperty(typeSetting.Name))
-					return bases[typeSetting.Name];
+			_Class_Help.SysAssert(typeClass && (typeClass.constructor === String || typeClass instanceof Function), "Class.AS typeClass is empty");
+			if (typeClass.constructor === String) {
+				if (bases.hasOwnProperty(typeClass)) {
+					return bases[typeClass];
+				}
+			}
+			else if (typeClass instanceof Function) {
+				var typeSetting = _Class_Help.GetSetting(typeClass);
+				if (typeSetting && typeSetting.Name) {
+					if (bases.hasOwnProperty(typeSetting.Name))
+						return bases[typeSetting.Name];
+				}
 			}
 			else {
 				for (var name in bases) {
@@ -939,10 +974,17 @@ function Class(defines) {
 					else
 						name = virtualArray.OwnerClass.name;
 
-					currentObj[virtualName] = _Class_Help._Help_Static_Class_Function_Sign_No_Inherit(function () {
-						checkPolicy(arguments.callee);
-						return fun.apply(obj_create_thisObj, arguments);
-					}, thisType, virtualName, name + "::virtual " + virtualName);
+					currentObj[virtualName] = _Class_Help._Help_Static_Class_Function_Sign_No_Inherit((function (oldfun, curfun) {
+						return function () {
+							checkPolicy(arguments.callee);
+
+							var tmp = obj_create_thisObj._super;
+							obj_create_thisObj._super = oldfun;
+							var ret = curfun.apply(obj_create_thisObj, arguments);
+							obj_create_thisObj._super = tmp;
+							return ret;
+						}
+					})(currentObj[virtualName], fun), thisType, virtualName, name + "::virtual " + virtualName);
 					//return;
 				}
 
@@ -965,12 +1007,18 @@ function Class(defines) {
 			var funsetting = _overrides[i];
 			for (var basename in bases) {
 				var base = bases[basename];
-				if (base.hasOwnProperty(funsetting.name)) {
-					if (_Class_Help.GetSetting(base.constructor)) //override not for Class.
-						continue;
-					base[funsettiing.name] = function () {
-						return funsetting.fun.apply(obj_create_thisObj, arguments);
-					}
+				if (_Class_Help.SafeGetSetting(base.constructor, "$IsVirtualFunctionFrom")) //override not for Class.
+					continue;
+				if (funsetting.name in base) {					//if ( base.hasOwnProperty(funsetting.name)) {
+					base[funsetting.name] = (function (oldfun, curfn) { //for cocos2dx class ._super
+						return function () {
+							var tmp = obj_create_thisObj._super;
+							obj_create_thisObj._super = oldfun;
+							var ret = curfn.apply(obj_create_thisObj, arguments);
+							obj_create_thisObj._super = tmp;
+							return ret;
+						}
+					})(base[funsetting.name], funsetting.fun);
 				}
 			}
 		}
@@ -1158,10 +1206,7 @@ Class.Policy = _Class_Help.Policy;
 Class.Property = _Class_Help.Property;
 Class.GetSetting = _Class_Help.GetSetting;
 Class.Assert = _Class_Help.SysAssert;
-Class.HiddenCaller = function (F) {
-	_Class_Help.SetDelegate(F, true);
-}
-
+Class.HiddenCaller = _Class_Help.SetDelegate;
 
 Class({
 	Namespace: Class,
@@ -1188,7 +1233,7 @@ Class({
 			var TYPE = this;
 			function F(args) { return TYPE.apply(this, args); }
 			F.prototype = TYPE.prototype;
-			Class.SetPolicy(F);
+			Class.HiddenCaller(F);
 			return new F(arguments);
 		}, [Property.Type.Static.Function, Property.Type.Clone])
 	}

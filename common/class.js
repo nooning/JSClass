@@ -484,19 +484,19 @@ var Class = (function () {
 		_Help_Static_Create_StaticProperty_Delegate: function (destClass, srcClass, name, checkPolicy) {
 			if (name === "constructor")
 				return;
-			//function Clone(f) { return function () { checkPolicy(arguments.callee); return f.apply(this, arguments); } }
-			function Clone(f) {
+
+			function Clone(f) {				// TODO: Need Confirm
 				var fun = _Class_Help.GetSetting(f).Value;
 				_Class_Help.SetDelegate(fun);
 
 				return function () {
 					checkPolicy(arguments.callee);
 					return fun.apply(this, arguments);
-				} //sign
-				//return f;
+				}
 			}
 
-			function NoClone(f, fobj) { return function () { checkPolicy(arguments.callee); return f.apply(destClass, arguments); } }/*MASK*/
+			//function NoClone(f, fobj) { return function () { checkPolicy(arguments.callee); return f.apply(destClass, arguments); } }/*MASK*/
+			function NoClone(f, fobj) { return function () { checkPolicy(arguments.callee); return f.apply(srcClass, arguments); } }/*MASK*/
 			function PropertyClone(funget, funset) {
 				var fun = funget || funset;
 				var setting = _Class_Help.GetSetting(fun);
@@ -754,9 +754,12 @@ var Class = (function () {
 			}
 		},
 		GetSetting: function (Obj) {
-			return Obj[this._SettingString];
+			return Obj[_Class_Help._SettingString];
 		},
 		SafeGetSetting: function (obj, name) {
+			if (!isNaN(obj) || obj === undefined || obj === null)
+				return undefined;
+
 			var setting = this.GetSetting(obj);
 			if (setting)
 				return setting[name];
@@ -798,6 +801,35 @@ var Class = (function () {
 		},
 		IsDelegate: function (fun) {
 			return _Class_Help.GetSetting(fun)[this._IsDelegate];
+		},
+		_SetArguments: function (v) {
+			if (v === undefined)
+				return v;
+			var r = function () { };
+			_Class_Help.SetSettings(r, { Argument: v });
+			return r;
+		},
+		_GetArguments: function (v, args) {
+			var r = _Class_Help.SafeGetSetting(v, "Argument");
+			if (r === undefined && !(v instanceof Array))
+				return [];
+
+			if (r === -1)
+				return args;
+
+			_Class_Help.SysAssert(v instanceof Array, "Base Parameter define must an Array or other Class.Arguments setting.");
+			var ret = [];
+			for (var i = 0; i < v.length; i++) {
+				r = _Class_Help.SafeGetSetting(v[i], "Argument");
+				if (r === undefined)
+					ret.push(v[i]);
+				else {
+					_Class_Help.SysAssert(r >= 0 || args.length < r, "Base Parameter Arguments Setting Error. can't set the ALL or NONE in argument items, or your setting item is out of arguments range");
+
+					ret.push(args[r]);
+				}
+			}
+			return ret;
 		}
 	};
 	//virtual & override not allow
@@ -900,7 +932,8 @@ var Class = (function () {
 			for (var name in StaticBases) {
 				var item = StaticBases[name];
 				//policy and base object.
-				base = bases[name] = _Class_Help._Help_CreateClass(item.Class)(item.Parameter);
+				var args = _Class_Help._GetArguments(item.Parameter, arguments);
+				base = bases[name] = _Class_Help._Help_CreateClass(item.Class)(args);
 
 				//export object by class name.
 				Object.defineProperty(this, name, {
@@ -1205,9 +1238,41 @@ var Class = (function () {
 
 	Class.Policy = _Class_Help.Policy;
 	Class.Property = _Class_Help.Property;
+
+	Class.Arguments = function (idx) {
+		return _Class_Help._SetArguments(idx);
+	};
+	Class.Arguments.NONE = _Class_Help._SetArguments();
+	Class.Arguments.ALL = _Class_Help._SetArguments(-1);
+
+	//{
+	//	NONE: _Class_Help._SetArguments(),
+	//	ALL: _Class_Help._SetArguments(-1),
+	//	0: _Class_Help._SetArguments(0),
+	//	1: _Class_Help._SetArguments(1),
+	//	2: _Class_Help._SetArguments(2),
+	//	3: _Class_Help._SetArguments(3),
+	//	4: _Class_Help._SetArguments(4),
+	//	5: _Class_Help._SetArguments(5),
+	//	6: _Class_Help._SetArguments(6),
+	//	7: _Class_Help._SetArguments(7),
+	//	8: _Class_Help._SetArguments(8),
+	//	9: _Class_Help._SetArguments(9),
+	//	10: _Class_Help._SetArguments(10)
+	//};
+
+
 	Class.GetSetting = _Class_Help.GetSetting;
 	Class.Assert = _Class_Help.SysAssert;
 	Class.HiddenCaller = _Class_Help.SetDelegate;
+	Class.GetMember = function (obj, membername) {
+		try {
+			return (new Function("return this." + membername)).call(obj);
+		}
+		catch (e) {
+			throw "Class.GetMember: can't find member " + membername;
+		}
+	}
 	return Class;
 })();
 var Property = Class.Property;

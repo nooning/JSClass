@@ -44,7 +44,7 @@ Class({
             Test:function(){
                 this.m_var++;
                 //this.Class2.testClass2();
-                this.AS(ABC.Class2).testClass2();
+                this.$AS(ABC.Class2).testClass2();
                 this.testClass2();
                 return this.m_var;
             }
@@ -135,7 +135,7 @@ function Test(){
 	}
 	ABC.ClassTop.Instance.Test();
 	ABC.ClassTop.Instance.testClass3();
-	ABC.ClassTop.Instance.AS(ABC.Class2).testClass2();
+	ABC.ClassTop.Instance.$AS(ABC.Class2).testClass2();
 
 
 	ABC.ClassL2.Instance.Fight();
@@ -143,8 +143,11 @@ function Test(){
 	ABC.ClassL4.Instance.Fight();
 	ABC.ClassL5.Instance.GetTestProtected();
 
+	var classIns = ABC.ClassL5.Instance;
+	var c52 = classIns.$AS(ABC.ClassL2);
 
-
+	console.log(Class.GetName(c52.$Super));
+	console.log(Class.GetName(c52.$Root));
 	ABC.ClassL5.Create(5);
 	//var a = new ABC.ClassL5(5);   //constructor is private.
 	var p = new ABC.ClassL4();

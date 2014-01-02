@@ -589,7 +589,7 @@ var Class = (function () {
 				}
 				//return f;
 			}
-			function NoClone(f) { return function () { checkPolicy(arguments.callee); return f.apply(this.AS(baseClass), arguments); } }
+			function NoClone(f) { return function () { checkPolicy(arguments.callee); return f.apply(this.$AS(baseClass), arguments); } }
 			function PropertyClone(funget, funset) {
 				var fun = funget || funset;
 				var setting = _Class_Help.GetSetting(fun);
@@ -617,10 +617,10 @@ var Class = (function () {
 				if (clsName.length == 0)
 					clsName = "(UnknownClass)";
 
-				desc.get = function () { checkPolicy(arguments.callee); return this.AS(baseClass)[name]; }
+				desc.get = function () { checkPolicy(arguments.callee); return this.$AS(baseClass)[name]; }
 				_Class_Help._Help_Static_Class_Function_Sign_Base(desc.get, ownerClass, name, clsName + "::get_" + name);
 				if (desc.writable) {
-					desc.set = function (v) { checkPolicy(arguments.callee); this.AS(baseClass)[name] = v; }
+					desc.set = function (v) { checkPolicy(arguments.callee); this.$AS(baseClass)[name] = v; }
 					_Class_Help._Help_Static_Class_Function_Sign_Base(desc.get, ownerClass, name, clsName + "::set_" + name);
 				}
 				delete desc.writable;
@@ -678,14 +678,14 @@ var Class = (function () {
 				desc.get = function () {
 					checkPolicy(arguments.callee);
 					return baseObj[name];
-					//return this.AS(baseObj)[name];
+					//return this.$AS(baseObj)[name];
 				}
 				_Class_Help._Help_Static_Class_Function_Sign_Base(desc.get, ownerClass, name, clsName + "::get_" + name);
 				if (desc.writable) {
 					desc.set = function (v) {
 						checkPolicy(arguments.callee);
 						baseObj[name] = v;
-						//this.AS(baseObj)[name] = v;
+						//this.$AS(baseObj)[name] = v;
 					}
 					_Class_Help._Help_Static_Class_Function_Sign_Base(desc.get, ownerClass, name, clsName + "::set_" + name);
 				}
@@ -928,12 +928,46 @@ var Class = (function () {
 			var Settings = _Class_Help.GetSetting(thisType);
 			var StaticBases = Settings.Bases;
 
+
+			(function () {
+				var _this = obj_create_thisObj;
+
+				var _parent = Settings.$$Parent;
+				if (!_parent)
+					_parent = _this;
+
+				Object.defineProperty(_this, "$Super", {	//temp
+					get: _Class_Help._Help_Static_Class_Function_Sign_No_Inherit(
+							function () { return _parent; }), enumerable: true
+				});
+
+				var _root = _this.$Super;
+				var _pre;
+				do {
+					_pre = _root;
+					_root = _root.$Super;
+				} while (_root !== _pre);
+
+				Object.defineProperty(_this, "$Root", {
+					get: _Class_Help._Help_Static_Class_Function_Sign_No_Inherit(
+						function () {
+							return _root;
+						}), enumerable: true
+				});
+			})();
+
 			var bases = {};
 			for (var name in StaticBases) {
 				var item = StaticBases[name];
 				//policy and base object.
 				var args = _Class_Help._GetArguments(item.Parameter, arguments);
+
+				var parentSetting = _Class_Help.GetSettingAlways(item.Class);
+				var oldParent = parentSetting.$$Parent;
+				parentSetting.$$Parent = this;
 				base = bases[name] = _Class_Help._Help_CreateClass(item.Class)(args);
+				parentSetting.$$Parent = oldParent;
+
 
 				//export object by class name.
 				Object.defineProperty(this, name, {
@@ -952,8 +986,8 @@ var Class = (function () {
 			}
 
 			////////////////////////////////////////////
-			this.AS = function (typeClass) {
-				_Class_Help.SysAssert(typeClass && (typeClass.constructor === String || typeClass instanceof Function), "Class.AS typeClass is empty");
+			this.$AS = function (typeClass) {
+				_Class_Help.SysAssert(typeClass && (typeClass.constructor === String || typeClass instanceof Function), "Class.$AS typeClass is empty");
 				if (typeClass.constructor === String) {
 					if (bases.hasOwnProperty(typeClass)) {
 						return bases[typeClass];
@@ -974,9 +1008,9 @@ var Class = (function () {
 				}
 
 				for (var name in bases) {
-					if (!bases[name].hasOwnProperty("AS"))
+					if (!bases[name].hasOwnProperty("$AS"))
 						continue;
-					var o = bases[name].AS(typeClass);
+					var o = bases[name].$AS(typeClass);
 					if (o) return o;
 				}
 
@@ -1026,14 +1060,14 @@ var Class = (function () {
 						var classType = virtualArray[i];
 						_Class_Help.SysAssert(classType instanceof Array, "SYSTEM ERROR: MUST BE A ARRAY.");
 
-						depVirtual(currentObj.AS(classType.OwnerClass), classType);
+						depVirtual(currentObj.$AS(classType.OwnerClass), classType);
 					}
 				}
 
 				for (var i = 0; i < virtualArray.length; i++) {
 					var classType = virtualArray[i];
 					if (classType instanceof Array) {
-						depVirtual(this.AS(classType.OwnerClass), classType);
+						depVirtual(this.$AS(classType.OwnerClass), classType);
 					}
 				}
 			}
@@ -1245,24 +1279,15 @@ var Class = (function () {
 	Class.Arguments.NONE = _Class_Help._SetArguments();
 	Class.Arguments.ALL = _Class_Help._SetArguments(-1);
 
-	//{
-	//	NONE: _Class_Help._SetArguments(),
-	//	ALL: _Class_Help._SetArguments(-1),
-	//	0: _Class_Help._SetArguments(0),
-	//	1: _Class_Help._SetArguments(1),
-	//	2: _Class_Help._SetArguments(2),
-	//	3: _Class_Help._SetArguments(3),
-	//	4: _Class_Help._SetArguments(4),
-	//	5: _Class_Help._SetArguments(5),
-	//	6: _Class_Help._SetArguments(6),
-	//	7: _Class_Help._SetArguments(7),
-	//	8: _Class_Help._SetArguments(8),
-	//	9: _Class_Help._SetArguments(9),
-	//	10: _Class_Help._SetArguments(10)
-	//};
-
-
 	Class.GetSetting = _Class_Help.GetSetting;
+	Class.GetName = function (objOrClass)
+	{
+		if (!(objOrClass instanceof Function)) {
+			objOrClass = objOrClass.constructor;
+		}
+
+		return Class.GetSetting(objOrClass).Name;
+	}
 	Class.Assert = _Class_Help.SysAssert;
 	Class.HiddenCaller = _Class_Help.SetDelegate;
 	Class.GetMember = function (obj, membername) {
@@ -1272,6 +1297,14 @@ var Class = (function () {
 		catch (e) {
 			throw "Class.GetMember: can't find member " + membername;
 		}
+	}
+
+	Class.AsCurrentClassFunction = function (fun) {
+		var owner = _Class_Help.SafeGetSetting(arguments.callee.caller, "OwnerClass");
+		if (!owner)
+			throw "AsCurrentClass Faild. caller must defined by Class";
+		_Class_Help._Help_Static_Class_Function_Sign(fun, owner, "anonymouse", "anonymouse function");
+		return fun;
 	}
 	return Class;
 })();

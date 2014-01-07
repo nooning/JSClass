@@ -15,9 +15,9 @@
  * C++ Class emulate for Javascript.
 * */
 var Class = (function () {
-	_SettingString= ".";
-	_VarString= ".";
-	_IsDelegate= "$IsDelegate";
+	_SettingString = ".";
+	_VarString = ".";
+	_IsDelegate = "$IsDelegate";
 	function __Help_get_Caller(caller) {
 		while (caller && SafeGetSetting(caller, _IsDelegate/*"$IsDelegate"*/)) {
 			caller = caller.caller;
@@ -86,7 +86,7 @@ var Class = (function () {
 
 		return fun;
 	}
-	var PropertyDefine= {
+	var PropertyDefine = {
 		Function: { Type: 0, Is: function (type) { return type === this.Type || type === PropertyDefine.Virtual.Type; } },
 		Var: { Type: 1, Is: function (type) { return (type & this.Type) === this.Type; } },  //NOTALLOW
 		Static: { Type: 2, Is: function (type) { return (type & this.Type) === this.Type; } },
@@ -96,8 +96,8 @@ var Class = (function () {
 		Override: { Type: 16, Is: function (type) { return (type & this.Type) === this.Type } }
 	}
 
-	var Policy= { Public: 0, Protected: 1, Private: 2, Default: 2 };
-	var PolicyCheck= [
+	var Policy = { Public: 0, Protected: 1, Private: 2, Default: 2 };
+	var PolicyCheck = [
 			function () { }, //public
 			function (fun) //protected
 			{
@@ -292,6 +292,9 @@ var Class = (function () {
 	}
 	function _Help_Static_Class_Function_Sign_No_Inherit(fun, owen, name, desc) {
 		return SetSettings(fun, { "OwnerClass": owen, "NoInherit": true, Name: name, Desc: desc });
+	}
+	function _Help_Static_Class_Function_Sign_Type(fun, owen, name, desc, type) {
+		return SetSettings(fun, { "OwnerClass": owen, Name: name, Desc: desc, Type: type });
 	}
 	function ___Help_CreatePropertyDelegateTemplate(delegate_dest, src, name, funs) {
 		var desc = Object.getOwnPropertyDescriptor(src, name);
@@ -499,10 +502,12 @@ var Class = (function () {
 			var fun = GetSetting(f).Value;
 			SetDelegate(fun);
 
-			return function () {
+			var ret = function () {
 				checkPolicy(arguments.callee);
 				return fun.apply(this, arguments);
 			}
+			SetSettings(ret, { Value: fun });
+			return ret;
 		}
 
 		//function NoClone(f, fobj) { return function () { checkPolicy(arguments.callee); return f.apply(destClass, arguments); } }/*MASK*/
@@ -567,7 +572,7 @@ var Class = (function () {
 				var newfun = fun(rawFun, rawFunSetting);
 				if (newfun) {
 					if (Class.Property.Type.Clone.Is(rawFunSetting.Type))
-						return _Help_Static_Class_Function_Sign(newfun, destClass, name, clsName + "(" + behaverStr + ")::" + name);
+						return _Help_Static_Class_Function_Sign_Type(newfun, destClass, name, clsName + "(" + behaverStr + ")::" + name, rawFunSetting.Type);
 					else
 						return _Help_Static_Class_Function_Sign_Base(newfun, destClass, name, clsName + "(" + behaverStr + ")::" + name);
 				}
@@ -650,7 +655,7 @@ var Class = (function () {
 					clsName = "(UnknownClass)";
 
 				if (Class.Property.Type.Clone.Is(rawFunSetting.Type))
-					return _Help_Static_Class_Function_Sign(fun(rawFun, rawFunSetting), ownerClass, name, SafeGetSetting(ownerClass, "Name") + "<" + clsName + ">(" + behaverStr + ")::" + name);
+					return _Help_Static_Class_Function_Sign_Type(fun(rawFun, rawFunSetting), ownerClass, name, SafeGetSetting(ownerClass, "Name") + "<" + clsName + ">(" + behaverStr + ")::" + name, rawFunSetting.Type);
 				else
 					return _Help_Static_Class_Function_Sign_Base(fun(rawFun, rawFunSetting), ownerClass, name, SafeGetSetting(ownerClass, "Name") + "<" + clsName + ">(" + behaverStr + ")::" + name);
 			},
@@ -817,31 +822,36 @@ var Class = (function () {
 	}
 	function _SetArguments(v) {
 		if (v === undefined)
-			return v;
+			return null;
 		var r = function () { };
 		SetSettings(r, { Argument: v });
 		return r;
 	}
 	function _GetArguments(v, args) {
 		var r = SafeGetSetting(v, "Argument");
-		if (r === undefined && !(v instanceof Array))
-			return [];
-
-		if (r === -1)
-			return args;
-
-		SysAssert(v instanceof Array, "Base Parameter define must an Array or other Class.Arguments setting.");
 		var ret = [];
-		for (var i = 0; i < v.length; i++) {
-			r = SafeGetSetting(v[i], "Argument");
-			if (r === undefined)
-				ret.push(v[i]);
-			else {
-				SysAssert(r >= 0 || args.length < r, "Base Parameter Arguments Setting Error. can't set the ALL or NONE in argument items, or your setting item is out of arguments range");
+		if (isNaN(r)) {
+			if (v instanceof Array) {
+				SysAssert(v instanceof Array, "Base Parameter define must an Array or other Class.Arguments setting.");
+				for (var i = 0; i < v.length; i++) {
+					r = SafeGetSetting(v[i], "Argument");
+					if (r === undefined)
+						ret.push(v[i]);
+					else {
+						SysAssert(r >= 0 || args.length < r, "Base Parameter Arguments Setting Error. can't set the ALL or NONE in argument items, or your setting item is out of arguments range");
 
-				ret.push(args[r]);
+						ret.push(args[r]);
+					}
+				}
+			}
+
+		} else {
+			SysAssert(r <= 0, "Base Parameter, define parameter should in an Array.");
+			for (var i = -r; i < args.length; i++) {
+				ret.push(args[i]);
 			}
 		}
+
 		return ret;
 	}
 	//////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1246,11 +1256,16 @@ var Class = (function () {
 	Class.Policy = Policy;
 	Class.Property = Property;
 
+	Class.Assert = SysAssert;
 	Class.Arguments = function (idx) {
 		return _SetArguments(idx);
 	};
 	Class.Arguments.NONE = _SetArguments();
-	Class.Arguments.ALL = _SetArguments(-1);
+	Class.Arguments.Start = function (n) {
+		SysAssert(n >= 0, "Class Arguments Must grater than 0");
+		return _SetArguments(-n);
+	}
+	Class.Arguments.ALL = Class.Arguments.Start(0);
 
 	Class.GetSetting = GetSetting;
 	Class.GetName = function (objOrClass) {
@@ -1260,9 +1275,8 @@ var Class = (function () {
 
 		return Class.GetSetting(objOrClass).Name;
 	}
-	Class.Assert = SysAssert;
 	Class.HiddenCaller = SetDelegate;
-	Class.GetMember = function (obj, membername,e) {
+	Class.GetMember = function (obj, membername, e) {
 		try {
 			var ext;
 			if (membername && membername.length > 0)
@@ -1270,17 +1284,15 @@ var Class = (function () {
 			else
 				ext = "";
 
-			var r= (new Function("return this" + ext)).call(obj);
-			if (e instanceof Object)
-			{
+			var r = (new Function("return this" + ext)).call(obj);
+			if (e instanceof Object) {
 				e.value = r;
 				return true;
 			}
 			return r;
 		}
 		catch (e) {
-			if (e instanceof Object)
-			{
+			if (e instanceof Object) {
 				e.value = undefined;
 				return false;
 			}
@@ -1288,8 +1300,8 @@ var Class = (function () {
 		}
 	}
 
-	Class.GetMemberBuilder = function (membername,withStatus) {
-		if (membername === undefined || membername ===null)
+	Class.GetMemberBuilder = function (membername, withStatus) {
+		if (membername === undefined || membername === null)
 			return null;
 		Class.Assert(membername.constructor === String, "Class.GetMemberBuilder: membername must be String");
 		var ext;
@@ -1298,9 +1310,8 @@ var Class = (function () {
 		else
 			ext = "";
 
-		var fun= new Function("return this" + ext);
-		if (withStatus)
-		{
+		var fun = new Function("return this" + ext);
+		if (withStatus) {
 			return function (obj) {
 				var ret = {};
 				try {
@@ -1313,11 +1324,9 @@ var Class = (function () {
 				return ret;
 			}
 		}
-		else
-		{
-			return function (obj)
-			{
-				try{
+		else {
+			return function (obj) {
+				try {
 					return fun.call(obj);
 				} catch (e) {
 					throw "Class.GetMember: can't find member " + membername;
